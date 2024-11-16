@@ -14,6 +14,7 @@ from chromadb.types import (
     LogicalOperator,
     WhereOperator,
     OperatorExpression,
+    Sort,
     Where,
     WhereDocumentOperator,
     WhereDocument,
@@ -326,6 +327,7 @@ LogicalOperator = LogicalOperator
 WhereOperator = WhereOperator
 OperatorExpression = OperatorExpression
 Where = Where
+Sort = Sort
 WhereDocumentOperator = WhereDocumentOperator
 
 

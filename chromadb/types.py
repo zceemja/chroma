@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union, Sequence, Dict, Mapping, List, Generic
+from typing import Any, Optional, Union, Sequence, Dict, Mapping, List, Generic, Tuple
 
 from typing_extensions import Self
 
@@ -288,6 +288,8 @@ WhereDocumentOperator = Union[
 ]
 WhereDocument = Dict[WhereDocumentOperator, Union[str, List["WhereDocument"]]]
 
+SortDesc = bool
+Sort = List[Tuple[str, SortDesc]]
 
 class Unspecified:
     """A sentinel value used to indicate that a value should not be updated"""

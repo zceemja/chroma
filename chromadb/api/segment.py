@@ -32,6 +32,7 @@ from chromadb.api.types import (
     Metadatas,
     Documents,
     URIs,
+    Sort,
     Where,
     WhereDocument,
     Include,
@@ -563,7 +564,7 @@ class SegmentAPI(ServerAPI):
         collection_id: UUID,
         ids: Optional[IDs] = None,
         where: Optional[Where] = None,
-        sort: Optional[str] = None,
+        sort: Optional[Sort] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         page: Optional[int] = None,
@@ -598,8 +599,8 @@ class SegmentAPI(ServerAPI):
             limit=limit,
         )
 
-        if sort is not None:
-            raise NotImplementedError("Sorting is not yet supported")
+        # if sort is not None:
+        #     raise NotImplementedError("Sorting is not yet supported")
 
         if page and page_size:
             offset = (page - 1) * page_size
@@ -620,7 +621,7 @@ class SegmentAPI(ServerAPI):
         return self._executor.get(
             GetPlan(
                 Scan(coll),
-                Filter(ids, where, where_document),
+                Filter(ids, where, where_document, sort),
                 Limit(offset or 0, limit),
                 Projection(
                     IncludeEnum.documents in include,

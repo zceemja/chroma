@@ -29,7 +29,7 @@ from chromadb.api.types import (
 )
 from chromadb.auth import UserIdentity
 from chromadb.config import Component, Settings
-from chromadb.types import Database, Tenant, Collection as CollectionModel
+from chromadb.types import Database, Tenant, Collection as CollectionModel, Sort
 import chromadb.utils.embedding_functions as ef
 from chromadb.api.models.Collection import Collection
 
@@ -221,7 +221,7 @@ class BaseAPI(ABC):
         collection_id: UUID,
         ids: Optional[IDs] = None,
         where: Optional[Where] = None,
-        sort: Optional[str] = None,
+        sort: Optional[Sort] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         page: Optional[int] = None,
@@ -641,7 +641,7 @@ class ServerAPI(BaseAPI, AdminAPI, Component):
         collection_id: UUID,
         ids: Optional[IDs] = None,
         where: Optional[Where] = None,
-        sort: Optional[str] = None,
+        sort: Optional[Sort] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         page: Optional[int] = None,

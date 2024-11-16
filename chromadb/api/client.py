@@ -27,7 +27,7 @@ from chromadb.config import Settings, System
 from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE
 from chromadb.api.models.Collection import Collection
 from chromadb.errors import ChromaError
-from chromadb.types import Database, Tenant, Where, WhereDocument
+from chromadb.types import Database, Tenant, Where, WhereDocument, Sort
 import chromadb.utils.embedding_functions as ef
 
 
@@ -321,7 +321,7 @@ class Client(SharedSystemClient, ClientAPI):
         collection_id: UUID,
         ids: Optional[IDs] = None,
         where: Optional[Where] = None,
-        sort: Optional[str] = None,
+        sort: Optional[Sort] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         page: Optional[int] = None,

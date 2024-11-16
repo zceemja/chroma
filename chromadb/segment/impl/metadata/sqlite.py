@@ -1,3 +1,5 @@
+from collections import defaultdict
+from enum import Enum
 from typing import Optional, Sequence, Any, Tuple, cast, Generator, Union, Dict, List
 from chromadb.segment import MetadataReader
 from chromadb.ingest import Consumer
@@ -30,7 +32,7 @@ from uuid import UUID
 from pypika import Table, Tables
 from pypika.queries import QueryBuilder
 import pypika.functions as fn
-from pypika.terms import Criterion
+from pypika.terms import Criterion, Case
 from itertools import groupby
 from functools import reduce
 import sqlite3
@@ -39,6 +41,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class Order(Enum):
+    """
+    https://github.com/kayak/pypika/issues/797#issuecomment-2266095197
+    Enum for ordering in queries.
+    Mimics pypika.enums.Order but ads NULLS FIRST and NULLS LAST options.
+    """
+
+    asc = "ASC"
+    desc = "DESC"
+    asc_nulls_first = "ASC NULLS FIRST"
+    asc_nulls_last = "ASC NULLS LAST"
+    desc_nulls_first = "DESC NULLS FIRST"
+    desc_nulls_last = "DESC NULLS LAST"
 
 class SqliteMetadataSegment(MetadataReader):
     _consumer: Consumer
@@ -116,6 +131,7 @@ class SqliteMetadataSegment(MetadataReader):
         where: Optional[Where] = None,
         where_document: Optional[WhereDocument] = None,
         ids: Optional[Sequence[str]] = None,
+        sort: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         include_metadata: bool = True,
@@ -155,12 +171,14 @@ class SqliteMetadataSegment(MetadataReader):
                 .on(embeddings_t.id == metadata_t.id)
             )
             .select(*select_clause)
-            .orderby(embeddings_t.id)
         )
+        if sort is None:
+            q = q.orderby(embeddings_t.id)
 
         # If there is a query that touches the metadata table, it uses
         # where and where_document filters, we treat this case seperately
         if where is not None or where_document is not None:
+            # TODO: add support for sort
             metadata_q = (
                 self._db.querybuilder()
                 .from_(embeddings_t)
@@ -200,18 +218,47 @@ class SqliteMetadataSegment(MetadataReader):
             # In the case where we don't use the metadata table
             # We have to apply limit/offset to embeddings and then join
             # with metadata
-            embeddings_q = (
-                self._db.querybuilder()
-                .from_(embeddings_t)
-                .select(embeddings_t.id)
-                .where(
-                    embeddings_t.segment_id
-                    == ParameterValue(self._db.uuid_to_db(self._id))
+            if sort is None:
+                embeddings_q = (
+                    self._db.querybuilder()
+                    .from_(embeddings_t)
+                    .select(embeddings_t.id)
+                    .where(
+                        embeddings_t.segment_id
+                        == ParameterValue(self._db.uuid_to_db(self._id))
+                    )
+                    .orderby(embeddings_t.id)
+                    .limit(limit)
+                    .offset(offset)
                 )
-                .orderby(embeddings_t.id)
-                .limit(limit)
-                .offset(offset)
-            )
+
+
+            else:
+                order_case_q = (
+                    Case()
+                    .when(metadata_t.string_value.notnull(), metadata_t.string_value)
+                    .when(metadata_t.int_value.notnull(), metadata_t.int_value)
+                    .when(metadata_t.float_value.notnull(), metadata_t.float_value)
+                    .when(metadata_t.bool_value.notnull(), metadata_t.bool_value)
+                    .else_(None)
+                )
+                embeddings_q = (
+                    self._db.querybuilder()
+                    .from_(embeddings_t)
+                    .select(embeddings_t.id).distinct()
+                    .left_join(metadata_t)
+                    .on(embeddings_t.id == metadata_t.id)
+                    .where(
+                        embeddings_t.segment_id
+                        == ParameterValue(self._db.uuid_to_db(self._id))
+                    )
+                    .limit(limit)
+                    .offset(offset)
+                )
+                for name, desc in sort:
+                    case = Case().when(metadata_t.key == ParameterValue(name), order_case_q)
+                    order = Order.desc_nulls_last if desc else Order.asc_nulls_last
+                    embeddings_q = embeddings_q.orderby(case, order=order)
 
             if ids is not None:
                 embeddings_q = embeddings_q.where(
@@ -219,13 +266,17 @@ class SqliteMetadataSegment(MetadataReader):
                 )
 
             q = q.where(embeddings_t.id.isin(embeddings_q))
-
+            if sort is not None:
+                for name, desc in sort:
+                    case = Case().when(metadata_t.key == ParameterValue(name), order_case_q)
+                    order = Order.desc_nulls_last if desc else Order.asc_nulls_last
+                    q = q.orderby(case, order=order)
         with self._db.tx() as cur:
             # Execute the query with the limit and offset already applied
-            return list(self._records(cur, q, include_metadata))
+            return list(self._records(cur, q, include_metadata, sort is not None))
 
     def _records(
-        self, cur: Cursor, q: QueryBuilder, include_metadata: bool
+        self, cur: Cursor, q: QueryBuilder, include_metadata: bool, sort: bool
     ) -> Generator[MetadataEmbeddingRecord, None, None]:
         """Given a cursor and a QueryBuilder, yield a generator of records. Assumes
         cursor returns rows in ID order."""
@@ -233,11 +284,21 @@ class SqliteMetadataSegment(MetadataReader):
         sql, params = get_sql(q)
         cur.execute(sql, params)
 
-        cur_iterator = iter(cur.fetchone, None)
-        group_iterator = groupby(cur_iterator, lambda r: int(r[0]))
+        if sort:
+            """ If sort, query returns returns metadata records with keys that are being sorted, 
+                and then all other metadata without any order. """
+            groups = defaultdict(list)
+            for r in cur.fetchall():
+                groups[int(r[0])].append(r)
+            for group in groups.values():
+                yield self._record(group, include_metadata)
 
-        for _, group in group_iterator:
-            yield self._record(list(group), include_metadata)
+        else:
+            cur_iterator = iter(cur.fetchone, None)
+            group_iterator = groupby(cur_iterator, lambda r: int(r[0]))
+
+            for _, group in group_iterator:
+                yield self._record(list(group), include_metadata)
 
     @trace_method("SqliteMetadataSegment._record", OpenTelemetryGranularity.ALL)
     def _record(

@@ -69,6 +69,7 @@ class MetadataReader(SegmentImplementation):
         where: Optional[Where] = None,
         where_document: Optional[WhereDocument] = None,
         ids: Optional[Sequence[str]] = None,
+        sort: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         include_metadata: bool = True,

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from chromadb.api.types import Embeddings, IDs
-from chromadb.types import RequestVersionContext, Where, WhereDocument, Collection
+from chromadb.types import RequestVersionContext, Where, WhereDocument, Collection, Sort
 
 
 @dataclass
@@ -22,6 +22,7 @@ class Filter:
     user_ids: Optional[IDs] = None
     where: Optional[Where] = None
     where_document: Optional[WhereDocument] = None
+    sort: Optional[Sort] = None
 
 
 @dataclass

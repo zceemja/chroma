@@ -23,6 +23,8 @@ from chromadb.api.types import (
 
 import logging
 
+from chromadb.types import Sort
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -103,6 +105,7 @@ class Collection(CollectionCommon["ServerAPI"]):
         ids: Optional[OneOrMany[ID]] = None,
         where: Optional[Where] = None,
         limit: Optional[int] = None,
+        sort: Optional[Sort] = None,
         offset: Optional[int] = None,
         where_document: Optional[WhereDocument] = None,
         include: Include = [IncludeEnum.metadatas, IncludeEnum.documents],
@@ -135,7 +138,7 @@ class Collection(CollectionCommon["ServerAPI"]):
             where=get_request["where"],
             where_document=get_request["where_document"],
             include=get_request["include"],
-            sort=None,
+            sort=sort,
             limit=limit,
             offset=offset,
             tenant=self.tenant,
